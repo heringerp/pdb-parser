@@ -19,14 +19,16 @@ pub enum Entry {
         Option<char>,
         u32,
         Option<char>,
-        f32,
-        f32,
-        f32,
+        f32, f32, f32,
         f32,
         f32,
         String,
-        String,
+        i8,
     ),
+    Master(u32, u32, u32,
+           u32, u32, u32,
+           u32, u32, u32,
+           u32, u32, u32),
 }
 
 impl FromStr for Entry {
@@ -70,10 +72,33 @@ impl FromStr for Entry {
                 get_float(line, 55, 60),
                 get_float(line, 61, 66),
                 get_string(line, 77, 78),
-                get_string(line, 79, 80),
+                get_charge(line, 79, 80),
             )),
+            "MASTER" => Ok(Self::Master(
+                    get_int(line, 11, 15), 
+                    get_int(line, 16, 20),
+                    get_int(line, 21, 25),
+                    get_int(line, 26, 30),
+                    get_int(line, 31, 35),
+                    get_int(line, 36, 40),
+                    get_int(line, 41, 45),
+                    get_int(line, 46, 50),
+                    get_int(line, 51, 55),
+                    get_int(line, 56, 60),
+                    get_int(line, 61, 65),
+                    get_int(line, 66, 70),
+                    )),
             x => Err(format!("Unknown entry {}", x)),
         }
+    }
+}
+
+fn get_charge(line: &str, start: usize, end: usize) -> i8 {
+    match line.chars().last().unwrap() {
+        ' ' => 0,
+        '+' => line[start..end - 1].trim().parse().unwrap(),
+        '-' => -line[start..end - 1].trim().parse::<i8>().unwrap(),
+        _ => panic!(),
     }
 }
 
@@ -81,6 +106,13 @@ fn get_opt_char(line: &str, pos: usize) -> Option<char> {
     match line.chars().nth(pos - 1).unwrap() {
         ' ' => None,
         x => Some(x),
+    }
+}
+
+fn get_opt_string(line: &str, start: usize, end: usize) -> Option<String> {
+    match get_string(line, start, end).as_str() {
+        "" => None,
+        x => Some(x.to_string()),
     }
 }
 
@@ -211,6 +243,31 @@ mod tests {
                 "THR".to_string(),
             ],
         );
+        assert_eq!(result, Entry::from_str(line).unwrap());
+    }
+
+    #[test]
+    fn create_atom() {
+        let line = "ATOM     13  CG2 VAL A  97     114.726  77.558 -32.731  1.00 20.45           C  ";
+        let result = Entry::Atom(13,
+                                 "CG2".to_string(),
+                                 None,
+                                 "VAL".to_string(),
+                                 Some('A'),
+                                 97,
+                                 None,
+                                 114.726, 77.558, -32.731,
+                                 1.00,
+                                 20.45,
+                                 "C".to_string(),
+                                 0);
+        assert_eq!(result, Entry::from_str(line).unwrap());
+    }
+
+    #[test]
+    fn create_master() {
+        let line = "MASTER      526    0    4    5   22    0    6    6 3738    2   38   34";
+        let result = Entry::Master(526, 0, 4, 5, 22, 0, 6, 6, 3738, 2, 38, 34);
         assert_eq!(result, Entry::from_str(line).unwrap());
     }
 }
