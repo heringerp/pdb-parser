@@ -1,10 +1,12 @@
 use chrono::NaiveDate;
+use error::ParseError;
 use std::str::FromStr;
 
 // TODO:
 // - function for savely getting range from str (when it is not filled till 80)
 // - error handling (maybe thiserror/anyhow)
 // - amino acid enum
+mod error;
 
 #[derive(Debug, PartialEq)]
 pub enum Entry {
@@ -32,7 +34,7 @@ pub enum Entry {
 }
 
 impl FromStr for Entry {
-    type Err = String;
+    type Err = error::ParseError;
 
     fn from_str(line: &str) -> Result<Self, Self::Err> {
         match &line[..6] {
@@ -50,55 +52,55 @@ impl FromStr for Entry {
                 get_string(line, 11, 80),
             )),
             "SEQRES" => Ok(Self::Seqres(
-                get_int(line, 8, 10),
+                get_int(line, 8, 10)?,
                 get_opt_char(line, 12),
-                get_int(line, 14, 17),
+                get_int(line, 14, 17)?,
                 line[19..70]
                     .split_whitespace()
                     .map(|x| x.to_string())
                     .collect(),
             )),
             "ATOM  " => Ok(Self::Atom(
-                get_int(line, 7, 11),
+                get_int(line, 7, 11)?,
                 get_string(line, 13, 16),
                 get_opt_char(line, 17),
                 get_string(line, 18, 20),
                 get_opt_char(line, 22),
-                get_int(line, 23, 26),
+                get_int(line, 23, 26)?,
                 get_opt_char(line, 27),
-                get_float(line, 31, 38),
-                get_float(line, 39, 46),
-                get_float(line, 47, 54),
-                get_float(line, 55, 60),
-                get_float(line, 61, 66),
+                get_float(line, 31, 38)?,
+                get_float(line, 39, 46)?,
+                get_float(line, 47, 54)?,
+                get_float(line, 55, 60)?,
+                get_float(line, 61, 66)?,
                 get_string(line, 77, 78),
-                get_charge(line, 79, 80),
+                get_charge(line, 79, 80)?,
             )),
             "MASTER" => Ok(Self::Master(
-                    get_int(line, 11, 15), 
-                    get_int(line, 16, 20),
-                    get_int(line, 21, 25),
-                    get_int(line, 26, 30),
-                    get_int(line, 31, 35),
-                    get_int(line, 36, 40),
-                    get_int(line, 41, 45),
-                    get_int(line, 46, 50),
-                    get_int(line, 51, 55),
-                    get_int(line, 56, 60),
-                    get_int(line, 61, 65),
-                    get_int(line, 66, 70),
+                    get_int(line, 11, 15)?, 
+                    get_int(line, 16, 20)?,
+                    get_int(line, 21, 25)?,
+                    get_int(line, 26, 30)?,
+                    get_int(line, 31, 35)?,
+                    get_int(line, 36, 40)?,
+                    get_int(line, 41, 45)?,
+                    get_int(line, 46, 50)?,
+                    get_int(line, 51, 55)?,
+                    get_int(line, 56, 60)?,
+                    get_int(line, 61, 65)?,
+                    get_int(line, 66, 70)?,
                     )),
-            x => Err(format!("Unknown entry {}", x)),
+            x => Err(ParseError::UnknownEntry(x.to_string())),
         }
     }
 }
 
-fn get_charge(line: &str, start: usize, end: usize) -> i8 {
+fn get_charge(line: &str, start: usize, end: usize) -> Result<i8, ParseError> {
     match line.chars().last().unwrap() {
-        ' ' => 0,
-        '+' => line[start..end - 1].trim().parse().unwrap(),
-        '-' => -line[start..end - 1].trim().parse::<i8>().unwrap(),
-        _ => panic!(),
+        ' ' => Ok(0),
+        '+' => Ok(line[start..end - 1].trim().parse()?),
+        '-' => Ok(-line[start..end - 1].trim().parse::<i8>()?),
+        _ => Err(ParseError::InvalidCharge(line[start..end - 1].to_string())),
     }
 }
 
@@ -120,12 +122,12 @@ fn get_string(line: &str, start: usize, end: usize) -> String {
     get_save_slice(line, start - 1, end).trim().to_string()
 }
 
-fn get_int(line: &str, start: usize, end: usize) -> u32 {
-    get_save_slice(line, start - 1, end).trim().parse().unwrap()
+fn get_int(line: &str, start: usize, end: usize) -> Result<u32, ParseError> {
+    Ok(get_save_slice(line, start - 1, end).trim().parse::<u32>()?)
 }
 
-fn get_float(line: &str, start: usize, end: usize) -> f32 {
-    get_save_slice(line, start - 1, end).trim().parse().unwrap()
+fn get_float(line: &str, start: usize, end: usize) -> Result<f32, ParseError> {
+    Ok(get_save_slice(line, start - 1, end).trim().parse::<f32>()?)
 }
 
 fn get_save_slice(line: &str, start: usize, end: usize) -> &str {
