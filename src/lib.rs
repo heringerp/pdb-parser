@@ -1,5 +1,6 @@
 use chrono::NaiveDate;
 use error::ParseError;
+use parsing::*;
 use std::str::FromStr;
 
 // TODO:
@@ -7,6 +8,54 @@ use std::str::FromStr;
 // - error handling (maybe thiserror/anyhow)
 // - amino acid enum
 mod error;
+mod parsing;
+
+pub struct Structure {
+    models: Vec<Model>,
+    name: String,
+}
+
+pub struct Model {
+    chains: Vec<Chain>,
+    id: u32,
+}
+
+pub struct Chain {
+    residues: Vec<Residue>,
+    id: char,
+}
+
+pub struct Residue {
+    atoms: Vec<Atom>,
+    kind: AminoAcid,
+    id: u32,
+}
+
+pub struct Atom {}
+
+pub enum AminoAcid {
+    Ala,
+    Val,
+    Ile,
+    Leu,
+    Met,
+    Phe,
+    Tyr,
+    Trp,
+    Arg,
+    His,
+    Lys,
+    Asp,
+    Glu,
+    Ser,
+    Thr,
+    Asn,
+    Gln,
+    Cys,
+    Sec,
+    Gly,
+    Pro,
+}
 
 #[derive(Debug, PartialEq)]
 pub enum Entry {
@@ -21,16 +70,17 @@ pub enum Entry {
         Option<char>,
         u32,
         Option<char>,
-        f32, f32, f32,
+        f32,
+        f32,
+        f32,
         f32,
         f32,
         String,
         i8,
     ),
-    Master(u32, u32, u32,
-           u32, u32, u32,
-           u32, u32, u32,
-           u32, u32, u32),
+    Master(u32, u32, u32, u32, u32, u32, u32, u32, u32, u32, u32, u32),
+    Model(u32),
+    EndModel,
 }
 
 impl FromStr for Entry {
@@ -77,63 +127,23 @@ impl FromStr for Entry {
                 get_charge(line, 79, 80)?,
             )),
             "MASTER" => Ok(Self::Master(
-                    get_int(line, 11, 15)?, 
-                    get_int(line, 16, 20)?,
-                    get_int(line, 21, 25)?,
-                    get_int(line, 26, 30)?,
-                    get_int(line, 31, 35)?,
-                    get_int(line, 36, 40)?,
-                    get_int(line, 41, 45)?,
-                    get_int(line, 46, 50)?,
-                    get_int(line, 51, 55)?,
-                    get_int(line, 56, 60)?,
-                    get_int(line, 61, 65)?,
-                    get_int(line, 66, 70)?,
-                    )),
+                get_int(line, 11, 15)?,
+                get_int(line, 16, 20)?,
+                get_int(line, 21, 25)?,
+                get_int(line, 26, 30)?,
+                get_int(line, 31, 35)?,
+                get_int(line, 36, 40)?,
+                get_int(line, 41, 45)?,
+                get_int(line, 46, 50)?,
+                get_int(line, 51, 55)?,
+                get_int(line, 56, 60)?,
+                get_int(line, 61, 65)?,
+                get_int(line, 66, 70)?,
+            )),
+            "MODEL " => Ok(Self::Model(get_int(line, 11, 14)?)),
+            "ENDMDL" => Ok(Self::EndModel),
             x => Err(ParseError::UnknownEntry(x.to_string())),
         }
-    }
-}
-
-fn get_charge(line: &str, start: usize, end: usize) -> Result<i8, ParseError> {
-    match line.chars().last().unwrap() {
-        ' ' => Ok(0),
-        '+' => Ok(line[start..end - 1].trim().parse()?),
-        '-' => Ok(-line[start..end - 1].trim().parse::<i8>()?),
-        _ => Err(ParseError::InvalidCharge(line[start..end - 1].to_string())),
-    }
-}
-
-fn get_opt_char(line: &str, pos: usize) -> Option<char> {
-    match line.chars().nth(pos - 1).unwrap() {
-        ' ' => None,
-        x => Some(x),
-    }
-}
-
-fn get_opt_string(line: &str, start: usize, end: usize) -> Option<String> {
-    match get_string(line, start, end).as_str() {
-        "" => None,
-        x => Some(x.to_string()),
-    }
-}
-
-fn get_string(line: &str, start: usize, end: usize) -> String {
-    get_save_slice(line, start - 1, end).trim().to_string()
-}
-
-fn get_int(line: &str, start: usize, end: usize) -> Result<u32, ParseError> {
-    Ok(get_save_slice(line, start - 1, end).trim().parse::<u32>()?)
-}
-
-fn get_float(line: &str, start: usize, end: usize) -> Result<f32, ParseError> {
-    Ok(get_save_slice(line, start - 1, end).trim().parse::<f32>()?)
-}
-
-fn get_save_slice(line: &str, start: usize, end: usize) -> &str {
-    match end >= line.len() {
-        true => &line[start..],
-        false => &line[start..end],
     }
 }
 
@@ -250,19 +260,24 @@ mod tests {
 
     #[test]
     fn create_atom() {
-        let line = "ATOM     13  CG2 VAL A  97     114.726  77.558 -32.731  1.00 20.45           C  ";
-        let result = Entry::Atom(13,
-                                 "CG2".to_string(),
-                                 None,
-                                 "VAL".to_string(),
-                                 Some('A'),
-                                 97,
-                                 None,
-                                 114.726, 77.558, -32.731,
-                                 1.00,
-                                 20.45,
-                                 "C".to_string(),
-                                 0);
+        let line =
+            "ATOM     13  CG2 VAL A  97     114.726  77.558 -32.731  1.00 20.45           C  ";
+        let result = Entry::Atom(
+            13,
+            "CG2".to_string(),
+            None,
+            "VAL".to_string(),
+            Some('A'),
+            97,
+            None,
+            114.726,
+            77.558,
+            -32.731,
+            1.00,
+            20.45,
+            "C".to_string(),
+            0,
+        );
         assert_eq!(result, Entry::from_str(line).unwrap());
     }
 
@@ -270,6 +285,21 @@ mod tests {
     fn create_master() {
         let line = "MASTER      526    0    4    5   22    0    6    6 3738    2   38   34";
         let result = Entry::Master(526, 0, 4, 5, 22, 0, 6, 6, 3738, 2, 38, 34);
+        assert_eq!(result, Entry::from_str(line).unwrap());
+    }
+
+    #[test]
+    fn create_model() {
+        let line =
+            "MODEL        1                                                                  ";
+        let result = Entry::Model(1);
+        assert_eq!(result, Entry::from_str(line).unwrap());
+    }
+
+    #[test]
+    fn create_endmodel() {
+        let line = "ENDMDL  1                                          ";
+        let result = Entry::EndModel;
         assert_eq!(result, Entry::from_str(line).unwrap());
     }
 }
